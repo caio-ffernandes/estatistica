@@ -3,14 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard Analítico de Alunos</title>
+<title>Dashboard de Vendas</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Adicionando SheetJS para leitura de Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 <style>
     :root {
-        --primary-color: #6366f1;
-        --primary-hover: #4f46e5;
+        --primary-color: #3b82f6; /* Azul / Vendas */
+        --primary-hover: #2563eb;
         --secondary-color: #f8fafc;
         --bg-color: #f1f5f9;
         --card-bg: #ffffff;
@@ -20,6 +22,10 @@
         --success: #10b981;
         --warning: #f59e0b;
         --danger: #ef4444;
+        --chart-color-1: rgba(59, 130, 246, 0.85); /* blue */
+        --chart-color-2: rgba(16, 185, 129, 0.85); /* emerald */
+        --chart-color-3: rgba(245, 158, 11, 0.85); /* amber */
+        --chart-color-4: rgba(139, 92, 246, 0.85); /* violet */
     }
     
     * {
@@ -43,6 +49,8 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
     }
 
     .header h1 {
@@ -64,14 +72,23 @@
         margin: 0 auto;
     }
 
-    .filters {
+    .filters-container {
         display: flex;
-        gap: 12px;
+        justify-content: space-between;
+        align-items: center;
         margin-bottom: 24px;
         background: var(--card-bg);
         padding: 16px;
         border-radius: 12px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .filters {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
     }
 
     .filter-btn {
@@ -99,10 +116,21 @@
         color: white;
         border-color: var(--primary-color);
     }
+    
+    .upload-btn {
+        background: var(--success);
+        color: white;
+        border: 1px solid var(--success);
+    }
+    .upload-btn:hover {
+        background: #059669;
+        border-color: #059669;
+        color: white;
+    }
 
     .kpi-cards {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 20px;
         margin-bottom: 24px;
     }
@@ -129,7 +157,7 @@
 
     .kpi-card.success::before { background: var(--success); }
     .kpi-card.warning::before { background: var(--warning); }
-    .kpi-card.info::before { background: #3b82f6; }
+    .kpi-card.info::before { background: #8b5cf6; }
 
     .kpi-title {
         font-size: 14px;
@@ -144,6 +172,12 @@
         font-size: 32px;
         font-weight: 700;
         color: var(--text-main);
+    }
+
+    .kpi-subtitle {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-top: 8px;
     }
 
     .grid-container {
@@ -237,30 +271,15 @@
         font-size: 12px;
         font-weight: 600;
     }
-
-    .badge-turma-A { background: #e0e7ff; color: #4338ca; }
-    .badge-turma-B { background: #dcfce7; color: #15803d; }
     
-    .status-alert {
-        padding: 16px;
-        border-radius: 8px;
-        margin-top: 20px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-weight: 500;
-    }
+    .badge-gen { background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; }
     
-    .status-alert.good { background: #dcfce7; border: 1px solid #bbf7d0; color: #166534; }
-    .status-alert.warning { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; }
-    .status-alert.bad { background: #fee2e2; border: 1px solid #fecaca; color: #991b1b; }
-
 </style>
 </head>
 <body>
 
 <div class="header">
-    <h1><i class="fas fa-chart-pie"></i> Dashboard Estatístico de Alunos</h1>
+    <h1><i class="fas fa-chart-line" style="color:var(--success)"></i> Dash de Vendas <span style="font-weight:300; font-size:18px; color:var(--text-muted);">| Estatísticas</span></h1>
     <div style="color: var(--text-muted); font-size: 14px;">
         <i class="far fa-clock"></i> Atualizado agora
     </div>
@@ -268,51 +287,66 @@
 
 <div class="container">
     
-    <div class="filters" id="filter-buttons">
-        <span style="display:flex; align-items:center; color: var(--text-muted); font-weight: 500; margin-right: 8px;"><i class="fas fa-filter" style="margin-right:8px;"></i> Filtros:</span>
-        <button class="filter-btn active" onclick="filtrar('all', this)"><i class="fas fa-users"></i> Ambas Turmas</button>
-        <button class="filter-btn" onclick="filtrar('A', this)"><i class="fas fa-chalkboard-teacher"></i> Turma A</button>
-        <button class="filter-btn" onclick="filtrar('B', this)"><i class="fas fa-chalkboard-teacher"></i> Turma B</button>
+    <div class="filters-container">
+        <div class="filters" id="filter-buttons">
+            <span style="display:flex; align-items:center; color: var(--text-muted); font-weight: 500; margin-right: 8px;">
+                <i class="fas fa-filter" style="margin-right:8px;"></i> Categorias:
+            </span>
+            <button class="filter-btn active" onclick="filtrar('all', this)"><i class="fas fa-box-open"></i> Todas Categorias</button>
+            <button class="filter-btn" onclick="filtrar('Eletrônicos', this)"><i class="fas fa-plug"></i> Eletrônicos</button>
+            <button class="filter-btn" onclick="filtrar('Acessórios', this)"><i class="fas fa-headphones"></i> Acessórios</button>
+            <button class="filter-btn" onclick="filtrar('Móveis', this)"><i class="fas fa-chair"></i> Móveis</button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <label for="excel-upload" class="filter-btn upload-btn" title="Deve conter: Data, Produto, Categoria, Preço, Quantidade (opcional)">
+                <i class="fas fa-file-excel"></i> Subir Planilha
+            </label>
+            <input type="file" id="excel-upload" accept=".xlsx, .xls, .csv" style="display: none;">
+        </div>
     </div>
 
     <div class="kpi-cards">
-        <div class="kpi-card info">
-            <div class="kpi-title">Total de Alunos</div>
-            <div class="kpi-value" id="kpi-total">0</div>
-        </div>
         <div class="kpi-card success">
-            <div class="kpi-title">Média Geral</div>
-            <div class="kpi-value" id="media">0.0</div>
+            <div class="kpi-title">Faturamento Total</div>
+            <div class="kpi-value" id="faturamento">R$ 0,00</div>
+            <div class="kpi-subtitle" id="qtd-vendas">0 vendas</div>
         </div>
         <div class="kpi-card" style="border-left-color: var(--primary-color)">
-            <div class="kpi-title">Mediana (50%)</div>
-            <div class="kpi-value" id="mediana">0.0</div>
+            <div class="kpi-title">Ticket Médio</div>
+            <div class="kpi-value" id="ticket-medio">R$ 0,00</div>
+            <div class="kpi-subtitle">Valor médio por pedido</div>
         </div>
         <div class="kpi-card" style="border-left-color: #8b5cf6">
-            <div class="kpi-title">Moda (Mais comum)</div>
-            <div class="kpi-value" id="moda">0.0</div>
+            <div class="kpi-title">Produto Campeão</div>
+            <div class="kpi-value" id="produto-top" style="font-size: 24px;">-</div>
+            <div class="kpi-subtitle">Mais recorrente nas vendas</div>
+        </div>
+        <div class="kpi-card info">
+            <div class="kpi-title">Média de Itens/Pedido</div>
+            <div class="kpi-value" id="itens-medio">0</div>
+            <div class="kpi-subtitle">Qtd média por compra</div>
         </div>
     </div>
 
     <div class="grid-container">
-        
         <!-- Alinhamento à Esquerda -->
         <div style="display: flex; flex-direction: column; gap: 24px;">
             <div class="panel">
                 <div class="panel-header">
-                    Distribuição das Notas (Histograma)
+                    Evolução do Faturamento Mensal/Diário
                 </div>
                 <div class="chart-container">
-                    <canvas id="histograma"></canvas>
+                    <canvas id="chartEtimologico"></canvas>
                 </div>
             </div>
 
             <div class="panel">
                 <div class="panel-header">
-                    Relação: Horas de Estudo vs. Notas
+                    Faturamento por Categoria
                 </div>
                 <div class="chart-container" style="height: 280px;">
-                    <canvas id="dispersao"></canvas>
+                    <canvas id="chartCategorias"></canvas>
                 </div>
             </div>
         </div>
@@ -322,54 +356,66 @@
             
             <div class="panel">
                 <div class="panel-header">
-                    Separatrizes (Quartis)
+                    Análise Estatística de Tickets (Percentis)
                 </div>
                 <div class="table-responsive">
                     <table>
                         <thead>
                             <tr>
                                 <th>Métrica</th>
-                                <th>Valor</th>
+                                <th>Valor do Pedido</th>
                                 <th>Significado</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td><strong>Q1</strong> <span style="color:var(--text-muted);font-size:12px">(25%)</span></td>
-                                <td id="q1" style="font-weight:600">0</td>
-                                <td style="font-size: 12px; color: var(--text-muted);">25% estão abaixo</td>
+                                <td><strong>P10</strong> <span style="color:var(--text-muted);font-size:12px">(1º Decil)</span></td>
+                                <td id="p10" style="font-weight:600; color:var(--danger)">R$ 0,00</td>
+                                <td style="font-size: 12px; color: var(--text-muted);">10% das vendas perdem desse valor</td>
                             </tr>
                             <tr>
-                                <td><strong>Q2</strong> <span style="color:var(--text-muted);font-size:12px">(50%)</span></td>
-                                <td id="q2" style="font-weight:600">0</td>
-                                <td style="font-size: 12px; color: var(--text-muted);">A Mediana</td>
+                                <td><strong>Q1</strong> <span style="color:var(--text-muted);font-size:12px">(25º Centil)</span></td>
+                                <td id="q1" style="font-weight:600; color:var(--warning)">R$ 0,00</td>
+                                <td style="font-size: 12px; color: var(--text-muted);">25% das vendas perdem desse valor</td>
                             </tr>
                             <tr>
-                                <td><strong>Q3</strong> <span style="color:var(--text-muted);font-size:12px">(75%)</span></td>
-                                <td id="q3" style="font-weight:600">0</td>
-                                <td style="font-size: 12px; color: var(--text-muted);">75% estão abaixo</td>
+                                <td><strong>Q2</strong> <span style="color:var(--text-muted);font-size:12px">(Mediana / 5º Decil)</span></td>
+                                <td id="q2" style="font-weight:600; color:var(--primary-color)">R$ 0,00</td>
+                                <td style="font-size: 12px; color: var(--text-muted);">Ponto central realista dos tickets</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Q3</strong> <span style="color:var(--text-muted);font-size:12px">(75º Centil)</span></td>
+                                <td id="q3" style="font-weight:600; color:var(--primary-hover)">R$ 0,00</td>
+                                <td style="font-size: 12px; color: var(--text-muted);">O topo (25% VIP) fatura mais que isso</td>
+                            </tr>
+                            <tr>
+                                <td><strong>P90</strong> <span style="color:var(--text-muted);font-size:12px">(9º Decil)</span></td>
+                                <td id="p90" style="font-weight:600; color:var(--success)">R$ 0,00</td>
+                                <td style="font-size: 12px; color: var(--text-muted);">Os 10% melhores pedidos ultrapassam</td>
+                            </tr>
+                            <tr>
+                                <td><strong>P99</strong> <span style="color:var(--text-muted);font-size:12px">(99º Centil)</span></td>
+                                <td id="p99" style="font-weight:600; color:var(--chart-color-4)">R$ 0,00</td>
+                                <td style="font-size: 12px; color: var(--text-muted);">A nata: o 1% de maior ticket</td>
                             </tr>
                         </tbody>
                     </table>
-                </div>
-                
-                <div id="interpretacao" class="status-alert good">
-                    <!-- Interpretacao will go here -->
                 </div>
             </div>
 
             <div class="panel">
                 <div class="panel-header">
-                    Lista de Alunos
+                    Detalhamento de Vendas
                 </div>
-                <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
-                    <table id="tabela-alunos">
+                <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                    <table id="tabela-vendas">
                         <thead>
                             <tr>
-                                <th>Nome</th>
-                                <th>Turma</th>
-                                <th>Horas</th>
-                                <th>Nota</th>
+                                <th>Data</th>
+                                <th>Produto</th>
+                                <th>Categoria</th>
+                                <th>Qtd</th>
+                                <th>Valor Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -383,156 +429,221 @@
 </div>
 
 <script>
-const dadosOriginais = [
-    {nome:'Ana', turma:'A', nota:7.5, horas:2},
-    {nome:'Bruno', turma:'A', nota:8.0, horas:3},
-    {nome:'Carlos', turma:'B', nota:6.0, horas:1},
-    {nome:'Daniela', turma:'B', nota:9.0, horas:4},
-    {nome:'Eduarda', turma:'A', nota:7.0, horas:2},
-    {nome:'Felipe', turma:'B', nota:5.5, horas:1},
-    {nome:'Gabriel', turma:'A', nota:8.5, horas:4},
-    {nome:'Helena', turma:'B', nota:7.5, horas:3},
-    {nome:'Igor', turma:'A', nota:6.0, horas:2},
-    {nome:'João', turma:'B', nota:8.0, horas:3}
+// Mock Inicial de Vendas
+let dadosOriginais = [
+    {data: '2023-10-01', produto: 'Notebook Inspiron', categoria: 'Eletrônicos', preco: 3500.00, quantidade: 2},
+    {data: '2023-10-02', produto: 'Mouse sem Fio', categoria: 'Acessórios', preco: 150.00, quantidade: 10},
+    {data: '2023-10-03', produto: 'Teclado Mecânico', categoria: 'Acessórios', preco: 250.00, quantidade: 5},
+    {data: '2023-10-04', produto: 'Monitor 27"', categoria: 'Eletrônicos', preco: 1200.00, quantidade: 3},
+    {data: '2023-10-04', produto: 'Cadeira Gamer', categoria: 'Móveis', preco: 850.00, quantidade: 4},
+    {data: '2023-10-05', produto: 'Notebook Inspiron', categoria: 'Eletrônicos', preco: 3500.00, quantidade: 1},
+    {data: '2023-10-06', produto: 'Mesa de Escritório', categoria: 'Móveis', preco: 600.00, quantidade: 2},
+    {data: '2023-10-06', produto: 'Mousepad Plus', categoria: 'Acessórios', preco: 80.00, quantidade: 15},
+    {data: '2023-10-07', produto: 'Monitor 27"', categoria: 'Eletrônicos', preco: 1200.00, quantidade: 1},
+    {data: '2023-10-08', produto: 'Cadeira Escritório', categoria: 'Móveis', preco: 450.00, quantidade: 3}
 ];
 
 let dados = [...dadosOriginais];
-let chartHistograma = null;
-let chartDispersao = null;
+let chartEvo = null;
+let chartCat = null;
 
-function calcularEstatisticas(notas) {
-    if(notas.length === 0) return { media: 0, mediana: 0, moda: 0, q1: 0, q2: 0, q3: 0 };
-    
-    // Média
-    let media = (notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(2);
-    
-    // Mediana & Quartis (notas já vem ordenadas)
-    let n = notas.length;
-    let mediana;
-    if(n % 2 === 0) {
-        mediana = ((notas[n/2 - 1] + notas[n/2]) / 2).toFixed(2);
-    } else {
-        mediana = notas[Math.floor(n/2)].toFixed(2);
+const formatMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+function formatarDataDisplay(dataStr) {
+    // Tenta formatar YYYY-MM-DD ou data excel pra algo legivel
+    let d = new Date(dataStr + 'T12:00:00Z');
+    if(!isNaN(d.valueOf())) {
+        return d.toLocaleDateString('pt-BR');
     }
-
-    const percentil = (p) => {
-        let index = p * (n - 1);
-        let lower = Math.floor(index);
-        let upper = Math.ceil(index);
-        let weight = index - lower;
-        if (upper >= n) return notas[lower];
-        return notas[lower] * (1 - weight) + notas[upper] * weight;
-    };
-
-    let q1 = percentil(0.25).toFixed(2);
-    let q2 = mediana;
-    let q3 = percentil(0.75).toFixed(2);
-
-    // Moda
-    let frequencias = {};
-    let maxFreq = 0;
-    let moda = [];
-    notas.forEach(v => {
-        frequencias[v] = (frequencias[v] || 0) + 1;
-        if(frequencias[v] > maxFreq) maxFreq = frequencias[v];
-    });
-    for(let k in frequencias) {
-        if(frequencias[k] === maxFreq) moda.push(k);
-    }
-    let modaStr = moda.length === notas.length ? "Amodal" : moda.join(", ");
-
-    return { media, mediana, moda: modaStr, q1, q2, q3 };
+    return dataStr; // Fallback
 }
 
-function renderizarTabelaAlunos() {
-    let html = '';
+function calcularEstatisticas() {
+    // Adiciona campo valorTotal a cada item
     dados.forEach(d => {
-        let notaColor = d.nota >= 7 ? 'color: var(--success); font-weight:600;' : (d.nota >= 5 ? 'color: var(--warning); font-weight:600;' : 'color: var(--danger); font-weight:600;');
+        d.valorTotal = (d.preco || 0) * (d.quantidade || 1);
+    });
+
+    let faturamentoTotal = dados.reduce((acc, curr) => acc + curr.valorTotal, 0);
+    let totalItens = dados.reduce((acc, curr) => acc + (curr.quantidade || 1), 0);
+    let ticketMedio = dados.length > 0 ? (faturamentoTotal / dados.length) : 0;
+    let itensMedio = dados.length > 0 ? (totalItens / dados.length) : 0;
+
+    // Calcular produto mais vendido em Ocorrencias (ou pode ser faturamento, escolhi ocorrências)
+    let freqProdutos = {};
+    let topMax = 0;
+    let topProd = '-';
+    dados.forEach(d => {
+        freqProdutos[d.produto] = (freqProdutos[d.produto] || 0) + (d.quantidade || 1);
+        if(freqProdutos[d.produto] > topMax) {
+            topMax = freqProdutos[d.produto];
+            topProd = d.produto;
+        }
+    });
+
+    // Separando arrays de Valores Totais para calcular os Quartis do Ticket
+    let tickets = dados.map(d => d.valorTotal).sort((a,b) => a - b);
+    
+    let n = tickets.length;
+    let mediana = 0, q1 = 0, q3 = 0, p10 = 0, p90 = 0, p99 = 0;
+    
+    if(n > 0) {
+        if(n % 2 === 0) {
+            mediana = (tickets[n/2 - 1] + tickets[n/2]) / 2;
+        } else {
+            mediana = tickets[Math.floor(n/2)];
+        }
+
+        const percentil = (p) => {
+            if(n === 1) return tickets[0];
+            let index = p * (n - 1);
+            let lower = Math.floor(index);
+            let upper = Math.ceil(index);
+            let weight = index - lower;
+            if (upper >= n) return tickets[lower];
+            return tickets[lower] * (1 - weight) + tickets[upper] * weight;
+        };
+
+        p10 = percentil(0.10);
+        q1 = percentil(0.25);
+        q3 = percentil(0.75);
+        p90 = percentil(0.90);
+        p99 = percentil(0.99);
+    }
+
+    return { 
+        faturamentoTotal, ticketMedio, itensMedio, topProd, 
+        p10, q1, mediana: mediana, q3, p90, p99 
+    };
+}
+
+function renderizarTabelaVendas() {
+    let html = '';
+    
+    // Sort table by newest first if possible, otherwise keep array order (sort desc by data if standard strings)
+    let sortedDados = [...dados].sort((a,b) => String(b.data).localeCompare(String(a.data)));
+
+    sortedDados.forEach(d => {
         html += `
             <tr>
-                <td>${d.nome}</td>
-                <td><span class="badge badge-turma-${d.turma}">Turma ${d.turma}</span></td>
-                <td>${d.horas}h</td>
-                <td style="${notaColor}">${d.nota.toFixed(1)}</td>
+                <td style="color:var(--text-muted)">${formatarDataDisplay(d.data)}</td>
+                <td style="font-weight:500;">${d.produto}</td>
+                <td><span class="badge badge-gen">${d.categoria || 'Geral'}</span></td>
+                <td>${d.quantidade}x</td>
+                <td style="color:var(--success); font-weight:600;">${formatMoeda(d.valorTotal)}</td>
             </tr>
         `;
     });
-    document.querySelector('#tabela-alunos tbody').innerHTML = html;
+    document.querySelector('#tabela-vendas tbody').innerHTML = html;
 }
 
-function atualizarGraficos(notas) {
-    let grupos = {};
-    notas.forEach(n => {
-        let chave = n.toFixed(1);
-        grupos[chave] = (grupos[chave] || 0) + 1;
+function atualizarGraficos() {
+    // Gráfico 1: Evolução por Data
+    let fatPorData = {};
+    dados.forEach(d => {
+        let dia = formatarDataDisplay(d.data);
+        fatPorData[dia] = (fatPorData[dia] || 0) + d.valorTotal;
     });
-    
-    let labelsHisto = Object.keys(grupos).sort((a,b)=>a-b);
-    let dadosHisto = labelsHisto.map(k => grupos[k]);
 
-    if(chartHistograma) {
-        chartHistograma.data.labels = labelsHisto;
-        chartHistograma.data.datasets[0].data = dadosHisto;
-        chartHistograma.update();
+    // Ordenar as chaves (Datas se estiverem em YYYY-MM-DD ficam fáceis, se estiver DD/MM/YYYY o localeCompare pode falhar levemente,
+    // o ideal é ordenar antes de formatar, mas para fins de dashboard padrão mantive simples)
+    let sortedEvoObj = {};
+    Object.keys(fatPorData).forEach(k => {
+        sortedEvoObj[k] = fatPorData[k]; // A ordem de inserção do JS pode não garantir cronologia em todos navegadores, mas serve pro mock
+    });
+
+    let labelsDia = Object.keys(sortedEvoObj);
+    let valoresDia = Object.values(sortedEvoObj);
+
+    if (chartEvo) {
+        chartEvo.data.labels = labelsDia;
+        chartEvo.data.datasets[0].data = valoresDia;
+        chartEvo.update();
     } else {
-        const ctxH = document.getElementById('histograma').getContext('2d');
-        chartHistograma = new Chart(ctxH, {
-            type: 'bar',
+        const ctxE = document.getElementById('chartEtimologico').getContext('2d');
+        chartEvo = new Chart(ctxE, {
+            type: 'line',
             data: {
-                labels: labelsHisto,
+                labels: labelsDia,
                 datasets: [{
-                    label: 'Alunos',
-                    data: dadosHisto,
-                    backgroundColor: 'rgba(99, 102, 241, 0.85)',
-                    borderColor: 'rgba(79, 70, 229, 1)',
-                    borderWidth: 1,
-                    borderRadius: 6
+                    label: 'Faturamento',
+                    data: valoresDia,
+                    borderColor: 'rgba(16, 185, 129, 1)', // emerald
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(16, 185, 129, 1)',
+                    fill: true,
+                    tension: 0.3
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
-                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        ticks: { callback: function(value) { return 'R$ ' + value.toLocaleString('pt-BR'); } } 
+                    } 
                 },
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Faturamento: ' + formatMoeda(context.raw);
+                            }
+                        }
+                    }
                 }
             }
         });
     }
 
-    let dataDispersao = dados.map(d => ({ x: d.horas, y: d.nota, nome: d.nome, turma: d.turma }));
-    if(chartDispersao) {
-        chartDispersao.data.datasets[0].data = dataDispersao;
-        chartDispersao.update();
+    // Gráfico 2: Categorias (Pie)
+    let fatPorCat = {};
+    dados.forEach(d => {
+        let cat = d.categoria || 'Outros';
+        fatPorCat[cat] = (fatPorCat[cat] || 0) + d.valorTotal;
+    });
+
+    let labelsCat = Object.keys(fatPorCat);
+    let valuesCat = Object.values(fatPorCat);
+
+    if (chartCat) {
+        chartCat.data.labels = labelsCat;
+        chartCat.data.datasets[0].data = valuesCat;
+        chartCat.update();
     } else {
-        const ctxD = document.getElementById('dispersao').getContext('2d');
-        chartDispersao = new Chart(ctxD, {
-            type: 'scatter',
+        const ctxC = document.getElementById('chartCategorias').getContext('2d');
+        chartCat = new Chart(ctxC, {
+            type: 'doughnut',
             data: {
+                labels: labelsCat,
                 datasets: [{
-                    label: 'Alunos',
-                    data: dataDispersao,
-                    backgroundColor: 'rgba(16, 185, 129, 0.7)',
-                    borderColor: 'rgba(5, 150, 105, 1)',
-                    pointRadius: 6,
-                    pointHoverRadius: 9
+                    data: valuesCat,
+                    backgroundColor: [
+                        'rgba(59, 130, 246, 0.85)', // blue
+                        'rgba(139, 92, 246, 0.85)', // violet
+                        'rgba(245, 158, 11, 0.85)', // amber
+                        'rgba(16, 185, 129, 0.85)', // emerald
+                        'rgba(236, 72, 153, 0.85)'  // pink
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#ffffff'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
-                    x: { title: { display: true, text: 'Horas de Estudo' }, beginAtZero: true },
-                    y: { title: { display: true, text: 'Nota' }, beginAtZero: true, max: 10 }
-                },
+                cutout: '65%',
                 plugins: {
+                    legend: { position: 'right' },
                     tooltip: {
                         callbacks: {
-                            label: (ctx) => {
-                                let d = ctx.raw;
-                                return `${d.nome} (Turma ${d.turma}): ${d.x}h -> Nota ${d.y}`;
+                            label: function(context) {
+                                let total = context.dataset.data.reduce((a,b)=>a+b, 0);
+                                let percentage = Math.round((context.raw / total) * 100);
+                                return ` ${context.label}: ${formatMoeda(context.raw)} (${percentage}%)`;
                             }
                         }
                     }
@@ -543,43 +654,33 @@ function atualizarGraficos(notas) {
 }
 
 function calcular(){
-    let notas = dados.map(d=>d.nota).sort((a,b)=>a-b);
+    let stats = calcularEstatisticas();
+
+    document.getElementById('faturamento').innerText = formatMoeda(stats.faturamentoTotal);
+    document.getElementById('qtd-vendas').innerText = `${dados.length} pedidos realizados`;
+    document.getElementById('ticket-medio').innerText = formatMoeda(stats.ticketMedio);
+    document.getElementById('itens-medio').innerText = stats.itensMedio.toFixed(1) + ' unid.';
+    document.getElementById('produto-top').innerText = stats.topProd;
     
-    let stats = calcularEstatisticas(notas);
+    document.getElementById('p10').innerText = formatMoeda(stats.p10);
+    document.getElementById('q1').innerText = formatMoeda(stats.q1);
+    document.getElementById('q2').innerText = formatMoeda(stats.mediana);
+    document.getElementById('q3').innerText = formatMoeda(stats.q3);
+    document.getElementById('p90').innerText = formatMoeda(stats.p90);
+    document.getElementById('p99').innerText = formatMoeda(stats.p99);
 
-    document.getElementById('kpi-total').innerText = dados.length;
-    document.getElementById('media').innerText = stats.media;
-    document.getElementById('mediana').innerText = stats.mediana;
-    document.getElementById('moda').innerText = stats.moda;
-    
-    document.getElementById('q1').innerText = stats.q1;
-    document.getElementById('q2').innerText = stats.q2;
-    document.getElementById('q3').innerText = stats.q3;
-
-    let alertBox = document.getElementById('interpretacao');
-    if(stats.media >= 7) {
-        alertBox.className = 'status-alert good';
-        alertBox.innerHTML = '<i class="fas fa-check-circle"></i> A turma apresenta um bom desempenho geral, com média acima de 7.0.';
-    } else if(stats.media >= 5) {
-        alertBox.className = 'status-alert warning';
-        alertBox.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Desempenho regular. Alguns alunos estão com dificuldade (média entre 5.0 e 7.0).';
-    } else {
-        alertBox.className = 'status-alert bad';
-        alertBox.innerHTML = '<i class="fas fa-times-circle"></i> Desempenho crítico e abaixo do esperado. Média inferior a 5.0.';
-    }
-
-    renderizarTabelaAlunos();
-    atualizarGraficos(notas);
+    renderizarTabelaVendas();
+    atualizarGraficos();
 }
 
-function filtrar(turma, btnElement){
+function filtrar(filtroCat, btnElement){
     document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
     if(btnElement) btnElement.classList.add('active');
 
-    if(turma === 'all') {
+    if(filtroCat === 'all') {
         dados = [...dadosOriginais];
     } else {
-        dados = dadosOriginais.filter(d => d.turma === turma);
+        dados = dadosOriginais.filter(d => String(d.categoria) === String(filtroCat));
     }
     
     calcular();
@@ -587,6 +688,96 @@ function filtrar(turma, btnElement){
 
 document.addEventListener("DOMContentLoaded", () => {
     calcular();
+});
+
+// LOGIC PARA UPLOAD DE EXCEL DE VENDAS
+document.getElementById('excel-upload').addEventListener('change', function(e) {
+    let file = e.target.files[0];
+    if (!file) return;
+
+    let reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            let data = new Uint8Array(e.target.result);
+            let workbook = XLSX.read(data, {type: 'array', cellDates:true}); // cellDates para Excel ler datas nativas
+            
+            let firstSheet = workbook.SheetNames[0];
+            let worksheet = workbook.Sheets[firstSheet];
+            let json = XLSX.utils.sheet_to_json(worksheet, {raw: false, dateNF:'yyyy-mm-dd'});
+            
+            if(json.length === 0) {
+                alert("A planilha parece estar vazia.");
+                return;
+            }
+
+            let newDadosOriginais = [];
+            let categoriasSet = new Set();
+            
+            json.forEach(row => {
+                let chaves = Object.keys(row);
+                
+                let findValue = (keywords) => {
+                    for(let k of chaves) {
+                        let kLower = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+                        for(let word of keywords) {
+                            if(kLower.includes(word)) return row[k];
+                        }
+                    }
+                    return null;
+                };
+
+                let dataVal = findValue(['data', 'date', 'dia', 'cadastro']);
+                let prodVal = findValue(['produto', 'item', 'peca', 'nome']);
+                let catVal = findValue(['categoria', 'tipo', 'setor', 'grupo']);
+                let precoVal = findValue(['preco', 'valor', 'price', 'unitario']);
+                let qtdVal = findValue(['quantidade', 'qtd', 'quantity', 'volume']);
+
+                let r_data = dataVal ? String(dataVal).trim() : 'N/D';
+                let r_produto = prodVal ? String(prodVal).trim() : 'Produto Genérico';
+                let r_categoria = catVal ? String(catVal).trim() : 'Geral';
+                
+                let r_precoStr = String(precoVal || "0").replace('R$', '').trim().replace(',', '.');
+                let r_qtdStr = String(qtdVal || "1").replace(',', '.');
+                
+                let precoFinal = parseFloat(r_precoStr) || 0;
+                let qtdFinal = parseFloat(r_qtdStr) || 1;
+
+                categoriasSet.add(r_categoria);
+                
+                newDadosOriginais.push({
+                    data: r_data,
+                    produto: r_produto,
+                    categoria: r_categoria,
+                    preco: precoFinal,
+                    quantidade: qtdFinal
+                });
+            });
+            
+            if(newDadosOriginais.length > 0) {
+                dadosOriginais = [...newDadosOriginais];
+                
+                // Recria botões de Filtro baseados nas categorias do Excel
+                let htmlFiltros = `<span style="display:flex; align-items:center; color: var(--text-muted); font-weight: 500; margin-right: 8px;"><i class="fas fa-filter" style="margin-right:8px;"></i> Filtros:</span>`;
+                htmlFiltros += `<button class="filter-btn active" onclick="filtrar('all', this)"><i class="fas fa-box-open"></i> Todas Categorias</button>`;
+                
+                let sortedCats = Array.from(categoriasSet).sort();
+                sortedCats.forEach(c => {
+                    htmlFiltros += `<button class="filter-btn" onclick="filtrar('${c}', this)"><i class="fas fa-tag"></i> ${c}</button>`;
+                });
+                
+                document.getElementById('filter-buttons').innerHTML = htmlFiltros;
+                
+                filtrar('all', document.querySelector('.filter-btn'));
+                alert(`Sucesso! ${dadosOriginais.length} vendas foram processadas da sua planilha.`);
+            } else {
+                alert('Ocorreu um problema ao identificar os dados. Sua tabela possui colunas como Data, Categoria, Produto, Preço?');
+            }
+        } catch(err) {
+            console.error(err);
+            alert("Erro ao processar o arquivo: " + err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
 });
 </script>
 
